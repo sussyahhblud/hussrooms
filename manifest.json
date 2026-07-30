@@ -1,0 +1,12 @@
+{
+  "hussrooms.data": {
+    "partCount": 5,
+    "totalSize": 75940018,
+    "partSize": 15728640
+  },
+  "hussrooms.wasm": {
+    "partCount": 5,
+    "totalSize": 66201585,
+    "partSize": 15728640
+  }
+}
