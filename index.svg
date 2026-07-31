@@ -75,7 +75,7 @@
       <script type="text/javascript"><![CDATA[
         var JSDELIVR_USER = "sussyahhblud";
         var JSDELIVR_REPO = "hussrooms";
-        var JSDELIVR_REF = "v1.0.1";
+        var JSDELIVR_REF = "v1.0.2";
         var JSDELIVR_BASE =
           "https://cdn.jsdelivr.net/gh/" + JSDELIVR_USER + "/" + JSDELIVR_REPO +
           "@" + JSDELIVR_REF;
