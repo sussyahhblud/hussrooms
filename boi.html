@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity WebGL Player | HUSSrooms</title>
+    <script>
+      // ======================================================================
+      // EDIT THESE THREE VALUES to point at the GitHub repo hosting your
+      // Unity "Build" AND "TemplateData" folders.
+      //
+      // JSDELIVR_USER = your GitHub username or org
+      // JSDELIVR_REPO = the repo name
+      // JSDELIVR_REF = a tag (recommended, e.g. "v1.0.2"), a commit hash,
+      // or "main"/"master" for the latest commit on that
+      // branch. Avoid "@latest" for large binary files --
+      // jsDelivr caches per-ref, so a fixed tag/commit
+      // gives you reliable, long-lived CDN caching.
+      // ======================================================================
+      var JSDELIVR_USER = "sussyahhblud";
+      var JSDELIVR_REPO = "hussrooms";
+      var JSDELIVR_REF = "v1.0.3";
+      var JSDELIVR_BASE =
+        "https://cdn.jsdelivr.net/gh/" + JSDELIVR_USER + "/" + JSDELIVR_REPO +
+        "@" + JSDELIVR_REF;
+      // These render before the rest of the page, so write them out
+      // immediately rather than waiting for DOMContentLoaded.
+      document.write('<link rel="shortcut icon" href="' + JSDELIVR_BASE + '/TemplateData/favicon.ico">');
+      document.write('<link rel="stylesheet" href="' + JSDELIVR_BASE + '/TemplateData/style.css">');
+    </script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        background: #000;
+      }
+      #unity-container, #unity-canvas {
+        width: 100vw !important;
+        height: 100vh !important;
+        display: block;
+      }
+      * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+      #unity-canvas { -webkit-user-drag: none; }
+
+      #unity-loading-bar {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        z-index: 10;
+        text-align: center;
+        width: 320px;
+      }
+      #unity-logo {
+        display: none;
+      }
+      #unity-progress-bar-empty {
+        width: 100%;
+        height: 12px;
+        margin: 0 auto;
+        background: #333;
+        border: 1px solid #555;
+      }
+      #unity-progress-bar-full {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+      }
+      #unity-progress-text {
+        color: #ccc;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        text-align: left;
+        margin-top: 10px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+        <div id="unity-progress-text">Preparing...</div>
+      </div>
+      <div id="unity-warning"> </div>
+      <div id="unity-footer">
+        <div id="unity-webgl-logo"></div>
+        <div id="unity-fullscreen-button"></div>
+        <div id="unity-build-title">HUSSrooms</div>
+      </div>
+    </div>
+    <script>
+      var container = document.querySelector("#unity-container");
+      var canvas = document.querySelector("#unity-canvas");
+      var loadingBar = document.querySelector("#unity-loading-bar");
+      var progressBarFull = document.querySelector("#unity-progress-bar-full");
+      var progressText = document.querySelector("#unity-progress-text");
+      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+      var warningBanner = document.querySelector("#unity-warning");
+      var unityInstanceRef = null;
+      // Any click, anywhere on the page, tries to enter fullscreen. This
+      // covers both the initial "click to start" case (page load has no
+      // user gesture, so an automatic fullscreen call is blocked by the
+      // browser) and re-entering fullscreen after the user presses Escape
+      // (which always exits fullscreen and can't be prevented -- but a
+      // subsequent click is a fresh, valid gesture, so this just works).
+      document.addEventListener("click", function() {
+        if (unityInstanceRef && !document.fullscreenElement) {
+          unityInstanceRef.SetFullscreen(1);
+        }
+      });
+      // ----------------------------------------------------------------------
+      // Shortcut / interaction blocking.
+      // Note: Escape always exits fullscreen in every browser and cannot be
+      // prevented by any website -- this is a hard, unbypassable browser
+      // security rule, not something this code chooses not to handle.
+      // ----------------------------------------------------------------------
+      document.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+      document.addEventListener("dragstart", function(e) { e.preventDefault(); });
+      document.addEventListener("keydown", function(e) {
+        var k = e.key;
+        var kl = (k || "").toLowerCase();
+        var ctrlOrCmd = e.ctrlKey || e.metaKey;
+        var blocked =
+          k === "F11" || k === "F5" || k === "F12" ||
+          (ctrlOrCmd && kl === "r") || // refresh
+          (ctrlOrCmd && e.shiftKey && kl === "r") || // hard refresh
+          (ctrlOrCmd && kl === "w") || // close tab (many browsers ignore this anyway)
+          (ctrlOrCmd && kl === "t") || // new tab
+          (ctrlOrCmd && kl === "n") || // new window
+          (ctrlOrCmd && kl === "p") || // print
+          (ctrlOrCmd && kl === "s") || // save page
+          (ctrlOrCmd && kl === "u") || // view-source
+          (ctrlOrCmd && e.shiftKey && kl === "i") || // devtools
+          (ctrlOrCmd && e.shiftKey && kl === "j") || // devtools console
+          (ctrlOrCmd && e.shiftKey && kl === "c") || // devtools inspect
+          (ctrlOrCmd && kl === "a") || // select all
+          (ctrlOrCmd && (k === "+" || k === "-" || k === "=")) || // zoom
+          (e.altKey && k === "ArrowLeft") || // back
+          (e.altKey && k === "ArrowRight") || // forward
+          k === "Backspace" && !isTypingTarget(e.target); // back navigation via backspace
+        if (blocked) e.preventDefault();
+      });
+      function isTypingTarget(el) {
+        var tag = (el && el.tagName || "").toLowerCase();
+        return tag === "input" || tag === "textarea" || (el && el.isContentEditable);
+      }
+      // Best-effort: warn (not guarantee) before closing/refreshing the tab.
+      window.addEventListener("beforeunload", function(e) {
+        e.preventDefault();
+        e.returnValue = "";
+      });
+      function unityShowBanner(msg, type) {
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+      // ----------------------------------------------------------------------
+      // Part-file downloader. jsDelivr caps individual GitHub-served files
+      // at 20MB, so instead of Range-requesting slices of one giant file,
+      // the build files are pre-split on disk (see split-build.sh) into
+      // "name.part000", "name.part001", ... and a manifest.json records how
+      // many parts each file has. This fetches every part (in parallel, in
+      // small batches), concatenates them in order into a Blob, and reports
+      // incremental progress via onProgress(fraction).
+      // ----------------------------------------------------------------------
+      async function fetchParts(baseUrl, name, partCount, totalSize, onProgress, onPartStart, mimeType) {
+        var buffers = new Array(partCount);
+        var downloaded = 0;
+        var CONCURRENCY = 4; // parallel requests at a time, be polite to the CDN
+        async function fetchOnePart(i) {
+          var partName = name + ".part" + String(i).padStart(3, "0");
+          var partUrl = baseUrl + "/" + partName;
+          if (onPartStart) onPartStart(partName);
+          var attempt = 0;
+          while (true) {
+            try {
+              var resp = await fetch(partUrl);
+              if (!resp.ok) throw new Error("Status " + resp.status + " for " + partUrl);
+              var buf = await resp.arrayBuffer();
+              buffers[i] = buf;
+              downloaded += buf.byteLength;
+              if (onProgress) onProgress(Math.min(downloaded / totalSize, 1), partName);
+              return;
+            } catch (err) {
+              attempt++;
+              if (attempt >= 3) throw err;
+            }
+          }
+        }
+        var next = 0;
+        async function worker() {
+          while (next < partCount) {
+            var i = next++;
+            await fetchOnePart(i);
+          }
+        }
+        var workers = [];
+        for (var w = 0; w < CONCURRENCY; w++) workers.push(worker());
+        await Promise.all(workers);
+        return new Blob(buffers, mimeType ? { type: mimeType } : undefined);
+      }
+      // Combines progress from the two chunked downloads (data + wasm) and
+      // the final Unity instantiation step into one smooth bar.
+      var progressWeights = { data: 0.45, wasm: 0.45, instantiate: 0.10 };
+      var progressState = { data: 0, wasm: 0, instantiate: 0 };
+      function updateOverallProgress() {
+        var total =
+          progressState.data * progressWeights.data +
+          progressState.wasm * progressWeights.wasm +
+          progressState.instantiate * progressWeights.instantiate;
+        progressBarFull.style.width = (100 * total) + "%";
+      }
+      function setProgressText(msg) {
+        if (progressText) progressText.textContent = msg;
+      }
+      var buildUrl = JSDELIVR_BASE;
+      var loaderUrl = buildUrl + "/hussrooms.loader.js";
+      var config = {
+        dataUrl: buildUrl + "/hussrooms.data",
+        frameworkUrl: buildUrl + "/hussrooms.framework.js",
+        codeUrl: buildUrl + "/hussrooms.wasm",
+        streamingAssetsUrl: JSDELIVR_BASE + "/StreamingAssets",
+        companyName: "tasdiam",
+        productName: "HUSSrooms",
+        productVersion: "1.0.2",
+        showBanner: unityShowBanner,
+      };
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+        container.className = "unity-mobile";
+        canvas.className = "unity-mobile";
+      }
+      // Desktop and mobile both fill the viewport via CSS (see <style> above),
+      // so no separate fixed-size branch is needed here anymore.
+      canvas.style.background = "url('" + buildUrl + "/hussrooms.jpg') center / cover";
+      loadingBar.style.display = "block";
+      async function boot() {
+        try {
+          setProgressText("fetching manifest.json");
+          // manifest.json (created by split-build.sh) tells us how many
+          // parts each big file was split into and its original total size.
+          var manifestResp = await fetch(buildUrl + "/manifest.json");
+          if (!manifestResp.ok) {
+            throw new Error("Couldn't load manifest.json (status " + manifestResp.status + ") -- did you run split-build.sh and commit its output?");
+          }
+          var manifest = await manifestResp.json();
+          // Download the split parts in parallel and reassemble them
+          // locally as Blob URLs before handing them to Unity. The
+          // framework.js loader script itself stays a normal (small) fetch.
+          var lastPartLabel = "";
+          function showPartProgress(kind, p, partName) {
+            var pct = Math.round(p * 100);
+            lastPartLabel = partName || lastPartLabel;
+            setProgressText(
+              "loading " + kind + "  " + pct + "%\n" +
+              lastPartLabel
+            );
+          }
+          var [dataBlob, wasmBlob] = await Promise.all([
+            fetchParts(
+              buildUrl,
+              "hussrooms.data",
+              manifest["hussrooms.data"].partCount,
+              manifest["hussrooms.data"].totalSize,
+              function(p, partName) {
+                progressState.data = p;
+                updateOverallProgress();
+                showPartProgress("hussrooms.data", p, partName);
+              },
+              function(partName) {
+                setProgressText("loading hussrooms.data\n" + partName);
+              },
+              "application/octet-stream"
+            ),
+            fetchParts(
+              buildUrl,
+              "hussrooms.wasm",
+              manifest["hussrooms.wasm"].partCount,
+              manifest["hussrooms.wasm"].totalSize,
+              function(p, partName) {
+                progressState.wasm = p;
+                updateOverallProgress();
+                // Prefer data progress while both run; switch to wasm once data is done
+                if (progressState.data < 1) {
+                  showPartProgress("hussrooms.data", progressState.data, null);
+                } else {
+                  showPartProgress("hussrooms.wasm", p, partName);
+                }
+              },
+              function(partName) {
+                if (progressState.data >= 1) {
+                  setProgressText("loading hussrooms.wasm\n" + partName);
+                }
+              },
+              "application/wasm"
+            ),
+          ]);
+          config.dataUrl = URL.createObjectURL(dataBlob);
+          config.codeUrl = URL.createObjectURL(wasmBlob);
+          setProgressText("loading hussrooms.loader.js");
+          var script = document.createElement("script");
+          script.src = loaderUrl;
+          script.onload = () => {
+            setProgressText("loading hussrooms.framework.js\ncreateUnityInstance...");
+            createUnityInstance(canvas, config, (progress) => {
+              progressState.instantiate = progress;
+              updateOverallProgress();
+              var pct = Math.round(progress * 100);
+              setProgressText("createUnityInstance  " + pct + "%");
+            }).then((unityInstance) => {
+              unityInstanceRef = unityInstance;
+              loadingBar.style.display = "none";
+              fullscreenButton.onclick = () => {
+                unityInstance.SetFullscreen(1);
+              };
+              // Release the blob URLs now that Unity has consumed them.
+              URL.revokeObjectURL(config.dataUrl);
+              URL.revokeObjectURL(config.codeUrl);
+              // Try to go fullscreen automatically. This only succeeds if the
+              // page already has "user activation" (e.g. the user clicked
+              // something before/during load) -- browsers block silent
+              // fullscreen on page load with no interaction, and there's no
+              // way around that. If it's blocked, Unity's own fullscreen
+              // button in the footer (already wired above) is the fallback.
+              unityInstance.SetFullscreen(1);
+            }).catch((message) => {
+              alert(message);
+            });
+          };
+          document.body.appendChild(script);
+        } catch (err) {
+          setProgressText("error: " + err.message);
+          unityShowBanner("Failed to load game assets: " + err.message, "error");
+          console.error(err);
+        }
+      }
+      boot();
+    </script>
+  </body>
+</html>
