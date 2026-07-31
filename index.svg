@@ -1,318 +1,123 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" width="100%" height="100%">
   <foreignObject width="100%" height="100%">
-    <xhtml:div id="root" xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;">
-      <style>
-        html, body {
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-          width: 100%;
-          height: 100%;
-          background: #000;
-        }
-        #unity-container, #unity-canvas {
-          width: 100vw !important;
-          height: 100vh !important;
-          display: block;
-        }
-        * {
-          -webkit-user-select: none;
-          -moz-user-select: none;
-          user-select: none;
-          -webkit-touch-callout: none;
-        }
-        #unity-canvas { -webkit-user-drag: none; }
-        #unity-loading-bar {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          display: none;
-          z-index: 10;
-          text-align: center;
-          width: 320px;
-        }
-        #unity-logo { display: none; }
-        #unity-progress-bar-empty {
-          width: 100%;
-          height: 12px;
-          margin: 0 auto;
-          background: #333;
-          border: 1px solid #555;
-        }
-        #unity-progress-bar-full {
-          width: 0%;
-          height: 100%;
-          background: #fff;
-        }
-        #unity-progress-text {
-          color: #ccc;
-          font-family: Consolas, "Courier New", monospace;
-          font-size: 12px;
-          text-align: left;
-          margin-top: 10px;
-          line-height: 1.45;
-          white-space: pre-wrap;
-          word-break: break-all;
-        }
-      </style>
-      <div id="unity-container" class="unity-desktop" style="position:relative;width:100%;height:100%;">
-        <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
-        <div id="unity-loading-bar">
-          <div id="unity-logo"></div>
-          <div id="unity-progress-bar-empty">
-            <div id="unity-progress-bar-full"></div>
-          </div>
-          <div id="unity-progress-text">Preparing...</div>
-        </div>
-        <div id="unity-warning"> </div>
-        <div id="unity-footer">
-          <div id="unity-webgl-logo"></div>
-          <div id="unity-fullscreen-button"></div>
-          <div id="unity-build-title">HUSSrooms</div>
-        </div>
-      </div>
-      <script type="text/javascript"><![CDATA[
-        var JSDELIVR_USER = "sussyahhblud";
-        var JSDELIVR_REPO = "hussrooms";
-        var JSDELIVR_REF = "v1.0.2";
-        var JSDELIVR_BASE =
-          "https://cdn.jsdelivr.net/gh/" + JSDELIVR_USER + "/" + JSDELIVR_REPO +
-          "@" + JSDELIVR_REF;
-
-        var root = document.getElementById("root") || document.documentElement;
-        var container = document.querySelector("#unity-container");
-        var canvas = document.querySelector("#unity-canvas");
-        var loadingBar = document.querySelector("#unity-loading-bar");
-        var progressBarFull = document.querySelector("#unity-progress-bar-full");
-        var progressText = document.querySelector("#unity-progress-text");
-        var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-        var warningBanner = document.querySelector("#unity-warning");
-        var unityInstanceRef = null;
-
-        function mountTarget() {
-          return container || root || document.documentElement;
-        }
-
-        document.addEventListener("click", function() {
-          if (unityInstanceRef && !document.fullscreenElement) {
-            unityInstanceRef.SetFullscreen(1);
-          }
-        });
-        document.addEventListener("contextmenu", function(e) { e.preventDefault(); });
-        document.addEventListener("dragstart", function(e) { e.preventDefault(); });
-        document.addEventListener("keydown", function(e) {
-          var k = e.key;
-          var kl = (k || "").toLowerCase();
-          var ctrlOrCmd = e.ctrlKey || e.metaKey;
-          var blocked =
-            k === "F11" || k === "F5" || k === "F12" ||
-            (ctrlOrCmd && kl === "r") ||
-            (ctrlOrCmd && e.shiftKey && kl === "r") ||
-            (ctrlOrCmd && kl === "w") ||
-            (ctrlOrCmd && kl === "t") ||
-            (ctrlOrCmd && kl === "n") ||
-            (ctrlOrCmd && kl === "p") ||
-            (ctrlOrCmd && kl === "s") ||
-            (ctrlOrCmd && kl === "u") ||
-            (ctrlOrCmd && e.shiftKey && kl === "i") ||
-            (ctrlOrCmd && e.shiftKey && kl === "j") ||
-            (ctrlOrCmd && e.shiftKey && kl === "c") ||
-            (ctrlOrCmd && kl === "a") ||
-            (ctrlOrCmd && (k === "+" || k === "-" || k === "=")) ||
-            (e.altKey && k === "ArrowLeft") ||
-            (e.altKey && k === "ArrowRight") ||
-            (k === "Backspace" && !isTypingTarget(e.target));
-          if (blocked) e.preventDefault();
-        });
-        function isTypingTarget(el) {
-          var tag = (el && el.tagName || "").toLowerCase();
-          return tag === "input" || tag === "textarea" || (el && el.isContentEditable);
-        }
-        window.addEventListener("beforeunload", function(e) {
-          e.preventDefault();
-          e.returnValue = "";
-        });
-        function unityShowBanner(msg, type) {
-          function updateBannerVisibility() {
-            warningBanner.style.display = warningBanner.children.length ? "block" : "none";
-          }
-          var div = document.createElement("div");
-          div.innerHTML = msg;
-          warningBanner.appendChild(div);
-          if (type == "error") div.style = "background: red; padding: 10px;";
-          else {
-            if (type == "warning") div.style = "background: yellow; padding: 10px;";
-            setTimeout(function() {
-              warningBanner.removeChild(div);
-              updateBannerVisibility();
-            }, 5000);
-          }
-          updateBannerVisibility();
-        }
-        async function fetchParts(baseUrl, name, partCount, totalSize, onProgress, onPartStart, mimeType) {
-          var buffers = new Array(partCount);
-          var downloaded = 0;
-          var CONCURRENCY = 4;
-          async function fetchOnePart(i) {
-            var partName = name + ".part" + String(i).padStart(3, "0");
-            var partUrl = baseUrl + "/" + partName;
-            if (onPartStart) onPartStart(partName);
-            var attempt = 0;
-            while (true) {
-              try {
-                var resp = await fetch(partUrl);
-                if (!resp.ok) throw new Error("Status " + resp.status + " for " + partUrl);
-                var buf = await resp.arrayBuffer();
-                buffers[i] = buf;
-                downloaded += buf.byteLength;
-                if (onProgress) onProgress(Math.min(downloaded / totalSize, 1), partName);
-                return;
-              } catch (err) {
-                attempt++;
-                if (attempt >= 3) throw err;
-              }
-            }
-          }
-          var next = 0;
-          async function worker() {
-            while (next < partCount) {
-              var i = next++;
-              await fetchOnePart(i);
-            }
-          }
-          var workers = [];
-          for (var w = 0; w < CONCURRENCY; w++) workers.push(worker());
-          await Promise.all(workers);
-          return new Blob(buffers, mimeType ? { type: mimeType } : undefined);
-        }
-        var progressWeights = { data: 0.45, wasm: 0.45, instantiate: 0.10 };
-        var progressState = { data: 0, wasm: 0, instantiate: 0 };
-        function updateOverallProgress() {
-          var total =
-            progressState.data * progressWeights.data +
-            progressState.wasm * progressWeights.wasm +
-            progressState.instantiate * progressWeights.instantiate;
-          progressBarFull.style.width = (100 * total) + "%";
-        }
-        function setProgressText(msg) {
-          if (progressText) progressText.textContent = msg;
-        }
-        var buildUrl = JSDELIVR_BASE;
-        var loaderUrl = buildUrl + "/hussrooms.loader.js";
-        var config = {
-          dataUrl: buildUrl + "/hussrooms.data",
-          frameworkUrl: buildUrl + "/hussrooms.framework.js",
-          codeUrl: buildUrl + "/hussrooms.wasm",
-          streamingAssetsUrl: JSDELIVR_BASE + "/StreamingAssets",
-          companyName: "tasdiam",
-          productName: "HUSSrooms",
-          productVersion: "1.0.2",
-          showBanner: unityShowBanner,
-        };
-        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-          var meta = document.createElement("meta");
-          meta.name = "viewport";
-          meta.content = "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
-          var head = document.getElementsByTagName("head")[0] || document.documentElement;
-          head.appendChild(meta);
-          container.className = "unity-mobile";
-          canvas.className = "unity-mobile";
-        }
-        canvas.style.background = "url('" + buildUrl + "/hussrooms.jpg') center / cover";
-        loadingBar.style.display = "block";
-        async function boot() {
-          try {
-            setProgressText("fetching manifest.json");
-            var manifestResp = await fetch(buildUrl + "/manifest.json");
-            if (!manifestResp.ok) {
-              throw new Error("Couldn't load manifest.json (status " + manifestResp.status + ")");
-            }
-            var manifest = await manifestResp.json();
-            var lastPartLabel = "";
-            function showPartProgress(kind, p, partName) {
-              var pct = Math.round(p * 100);
-              lastPartLabel = partName || lastPartLabel;
-              setProgressText("loading " + kind + " " + pct + "%\n" + lastPartLabel);
-            }
-            var results = await Promise.all([
-              fetchParts(
-                buildUrl,
-                "hussrooms.data",
-                manifest["hussrooms.data"].partCount,
-                manifest["hussrooms.data"].totalSize,
-                function(p, partName) {
-                  progressState.data = p;
-                  updateOverallProgress();
-                  showPartProgress("hussrooms.data", p, partName);
-                },
-                function(partName) {
-                  setProgressText("loading hussrooms.data\n" + partName);
-                },
-                "application/octet-stream"
-              ),
-              fetchParts(
-                buildUrl,
-                "hussrooms.wasm",
-                manifest["hussrooms.wasm"].partCount,
-                manifest["hussrooms.wasm"].totalSize,
-                function(p, partName) {
-                  progressState.wasm = p;
-                  updateOverallProgress();
-                  if (progressState.data < 1) {
-                    showPartProgress("hussrooms.data", progressState.data, null);
-                  } else {
-                    showPartProgress("hussrooms.wasm", p, partName);
-                  }
-                },
-                function(partName) {
-                  if (progressState.data >= 1) {
-                    setProgressText("loading hussrooms.wasm\n" + partName);
-                  }
-                },
-                "application/wasm"
-              ),
-            ]);
-            var dataBlob = results[0];
-            var wasmBlob = results[1];
-            config.dataUrl = URL.createObjectURL(dataBlob);
-            config.codeUrl = URL.createObjectURL(wasmBlob);
-            setProgressText("loading hussrooms.loader.js");
-            var script = document.createElement("script");
-            script.src = loaderUrl;
-            script.onload = function() {
-              setProgressText("loading hussrooms.framework.js\ncreateUnityInstance...");
-              createUnityInstance(canvas, config, function(progress) {
-                progressState.instantiate = progress;
-                updateOverallProgress();
-                var pct = Math.round(progress * 100);
-                setProgressText("createUnityInstance " + pct + "%");
-              }).then(function(unityInstance) {
-                unityInstanceRef = unityInstance;
-                loadingBar.style.display = "none";
-                fullscreenButton.onclick = function() {
-                  unityInstance.SetFullscreen(1);
-                };
-                URL.revokeObjectURL(config.dataUrl);
-                URL.revokeObjectURL(config.codeUrl);
-                unityInstance.SetFullscreen(1);
-              }).catch(function(message) {
-                alert(message);
-              });
-            };
-            script.onerror = function() {
-              setProgressText("error: failed to load hussrooms.loader.js");
-              unityShowBanner("Failed to load hussrooms.loader.js", "error");
-            };
-            mountTarget().appendChild(script);
-          } catch (err) {
-            setProgressText("error: " + err.message);
-            unityShowBanner("Failed to load game assets: " + err.message, "error");
-            console.error(err);
-          }
-        }
-        boot();
-      ]]></script>
-    </xhtml:div>
+    <xhtml:iframe id="game" xmlns="http://www.w3.org/1999/xhtml"
+      style="position:fixed;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;"
+      allow="fullscreen; autoplay; gamepad; xr-spatial-tracking"
+      allowfullscreen="true"></xhtml:iframe>
   </foreignObject>
+  <script type="text/javascript"><![CDATA[
+(function () {
+  var html = "<!DOCTYPE html><html lang=\"en-us\"><head><meta charset=\"utf-8\">" +
+    "<meta name=\"viewport\" content=\"width=device-width,height=device-height,initial-scale=1,user-scalable=no,shrink-to-fit=yes\">" +
+    "<title>HUSSrooms</title><style>" +
+    "html,body{margin:0;padding:0;overflow:hidden;width:100%;height:100%;background:#000}" +
+    "#unity-container,#unity-canvas{width:100vw!important;height:100vh!important;display:block}" +
+    "*{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}" +
+    "#unity-canvas{-webkit-user-drag:none}" +
+    "#unity-loading-bar{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;z-index:10;text-align:center;width:320px}" +
+    "#unity-logo{display:none}" +
+    "#unity-progress-bar-empty{width:100%;height:12px;margin:0 auto;background:#333;border:1px solid #555}" +
+    "#unity-progress-bar-full{width:0%;height:100%;background:#fff}" +
+    "#unity-progress-text{color:#ccc;font-family:Consolas,'Courier New',monospace;font-size:12px;text-align:left;margin-top:10px;line-height:1.45;white-space:pre-wrap;word-break:break-all}" +
+    "</style></head><body>" +
+    "<div id=\"unity-container\" class=\"unity-desktop\">" +
+    "<canvas id=\"unity-canvas\" width=\"960\" height=\"600\" tabindex=\"-1\"></canvas>" +
+    "<div id=\"unity-loading-bar\"><div id=\"unity-logo\"></div>" +
+    "<div id=\"unity-progress-bar-empty\"><div id=\"unity-progress-bar-full\"></div></div>" +
+    "<div id=\"unity-progress-text\">Preparing...</div></div>" +
+    "<div id=\"unity-warning\"> </div>" +
+    "<div id=\"unity-footer\"><div id=\"unity-webgl-logo\"></div>" +
+    "<div id=\"unity-fullscreen-button\"></div>" +
+    "<div id=\"unity-build-title\">HUSSrooms</div></div></div>" +
+    "<script>" +
+    "var JSDELIVR_USER='sussyahhblud',JSDELIVR_REPO='hussrooms',JSDELIVR_REF='v1.0.2';" +
+    "var JSDELIVR_BASE='https://cdn.jsdelivr.net/gh/'+JSDELIVR_USER+'/'+JSDELIVR_REPO+'@'+JSDELIVR_REF;" +
+    "var container=document.querySelector('#unity-container');" +
+    "var canvas=document.querySelector('#unity-canvas');" +
+    "var loadingBar=document.querySelector('#unity-loading-bar');" +
+    "var progressBarFull=document.querySelector('#unity-progress-bar-full');" +
+    "var progressText=document.querySelector('#unity-progress-text');" +
+    "var fullscreenButton=document.querySelector('#unity-fullscreen-button');" +
+    "var warningBanner=document.querySelector('#unity-warning');" +
+    "var unityInstanceRef=null;" +
+    "document.addEventListener('click',function(){if(unityInstanceRef&&!document.fullscreenElement)unityInstanceRef.SetFullscreen(1);});" +
+    "document.addEventListener('contextmenu',function(e){e.preventDefault();});" +
+    "document.addEventListener('dragstart',function(e){e.preventDefault();});" +
+    "document.addEventListener('keydown',function(e){" +
+    "var k=e.key,kl=(k||'').toLowerCase(),c=e.ctrlKey||e.metaKey;" +
+    "var blocked=k==='F11'||k==='F5'||k==='F12'||(c&&kl==='r')||(c&&e.shiftKey&&kl==='r')||" +
+    "(c&&kl==='w')||(c&&kl==='t')||(c&&kl==='n')||(c&&kl==='p')||(c&&kl==='s')||(c&&kl==='u')||" +
+    "(c&&e.shiftKey&&kl==='i')||(c&&e.shiftKey&&kl==='j')||(c&&e.shiftKey&&kl==='c')||(c&&kl==='a')||" +
+    "(c&&(k==='+'||k==='-'||k==='='))||(e.altKey&&k==='ArrowLeft')||(e.altKey&&k==='ArrowRight')||" +
+    "(k==='Backspace'&&!isTypingTarget(e.target));if(blocked)e.preventDefault();});" +
+    "function isTypingTarget(el){var t=(el&&el.tagName||'').toLowerCase();return t==='input'||t==='textarea'||(el&&el.isContentEditable);}" +
+    "window.addEventListener('beforeunload',function(e){e.preventDefault();e.returnValue='';});" +
+    "function unityShowBanner(msg,type){function vis(){warningBanner.style.display=warningBanner.children.length?'block':'none';}" +
+    "var d=document.createElement('div');d.innerHTML=msg;warningBanner.appendChild(d);" +
+    "if(type=='error')d.style='background:red;padding:10px;';else{if(type=='warning')d.style='background:yellow;padding:10px';" +
+    "setTimeout(function(){warningBanner.removeChild(d);vis();},5000);}vis();}" +
+    "async function fetchParts(baseUrl,name,partCount,totalSize,onProgress,onPartStart,mimeType){" +
+    "var buffers=new Array(partCount),downloaded=0,CONCURRENCY=4;" +
+    "async function fetchOnePart(i){var partName=name+'.part'+String(i).padStart(3,'0');var partUrl=baseUrl+'/'+partName;" +
+    "if(onPartStart)onPartStart(partName);var attempt=0;while(true){try{var resp=await fetch(partUrl);" +
+    "if(!resp.ok)throw new Error('Status '+resp.status+' for '+partUrl);var buf=await resp.arrayBuffer();buffers[i]=buf;" +
+    "downloaded+=buf.byteLength;if(onProgress)onProgress(Math.min(downloaded/totalSize,1),partName);return;}" +
+    "catch(err){attempt++;if(attempt>=3)throw err;}}}" +
+    "var next=0;async function worker(){while(next<partCount){var i=next++;await fetchOnePart(i);}}" +
+    "var workers=[];for(var w=0;w<CONCURRENCY;w++)workers.push(worker());await Promise.all(workers);" +
+    "return new Blob(buffers,mimeType?{type:mimeType}:undefined);}" +
+    "var progressWeights={data:0.45,wasm:0.45,instantiate:0.10};" +
+    "var progressState={data:0,wasm:0,instantiate:0};" +
+    "function updateOverallProgress(){var total=progressState.data*progressWeights.data+progressState.wasm*progressWeights.wasm+progressState.instantiate*progressWeights.instantiate;progressBarFull.style.width=(100*total)+'%';}" +
+    "function setProgressText(msg){if(progressText)progressText.textContent=msg;}" +
+    "var buildUrl=JSDELIVR_BASE,loaderUrl=buildUrl+'/hussrooms.loader.js';" +
+    "var config={dataUrl:buildUrl+'/hussrooms.data',frameworkUrl:buildUrl+'/hussrooms.framework.js',codeUrl:buildUrl+'/hussrooms.wasm'," +
+    "streamingAssetsUrl:JSDELIVR_BASE+'/StreamingAssets',companyName:'tasdiam',productName:'HUSSrooms',productVersion:'1.0.2',showBanner:unityShowBanner};" +
+    "if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){container.className='unity-mobile';canvas.className='unity-mobile';}" +
+    "canvas.style.background=\\\"url('\\\"+buildUrl+\\\"/hussrooms.jpg') center / cover\\\";" +
+    "loadingBar.style.display='block';" +
+    "async function boot(){try{setProgressText('fetching manifest.json');" +
+    "var manifestResp=await fetch(buildUrl+'/manifest.json');" +
+    "if(!manifestResp.ok)throw new Error('Could not load manifest.json (status '+manifestResp.status+')');" +
+    "var manifest=await manifestResp.json();var lastPartLabel='';" +
+    "function showPartProgress(kind,p,partName){var pct=Math.round(p*100);lastPartLabel=partName||lastPartLabel;setProgressText('loading '+kind+' '+pct+'%\\\\n'+lastPartLabel);}" +
+    "var results=await Promise.all([" +
+    "fetchParts(buildUrl,'hussrooms.data',manifest['hussrooms.data'].partCount,manifest['hussrooms.data'].totalSize," +
+    "function(p,partName){progressState.data=p;updateOverallProgress();showPartProgress('hussrooms.data',p,partName);}," +
+    "function(partName){setProgressText('loading hussrooms.data\\\\n'+partName);},'application/octet-stream')," +
+    "fetchParts(buildUrl,'hussrooms.wasm',manifest['hussrooms.wasm'].partCount,manifest['hussrooms.wasm'].totalSize," +
+    "function(p,partName){progressState.wasm=p;updateOverallProgress();" +
+    "if(progressState.data<1)showPartProgress('hussrooms.data',progressState.data,null);else showPartProgress('hussrooms.wasm',p,partName);}," +
+    "function(partName){if(progressState.data>=1)setProgressText('loading hussrooms.wasm\\\\n'+partName);},'application/wasm')" +
+    "]);" +
+    "config.dataUrl=URL.createObjectURL(results[0]);config.codeUrl=URL.createObjectURL(results[1]);" +
+    "setProgressText('loading hussrooms.loader.js');" +
+    "var script=document.createElement('script');script.src=loaderUrl;" +
+    "script.onload=function(){setProgressText('loading hussrooms.framework.js\\\\ncreateUnityInstance...');" +
+    "createUnityInstance(canvas,config,function(progress){progressState.instantiate=progress;updateOverallProgress();" +
+    "setProgressText('createUnityInstance '+Math.round(progress*100)+'%');}).then(function(unityInstance){" +
+    "unityInstanceRef=unityInstance;loadingBar.style.display='none';" +
+    "fullscreenButton.onclick=function(){unityInstance.SetFullscreen(1);};" +
+    "URL.revokeObjectURL(config.dataUrl);URL.revokeObjectURL(config.codeUrl);unityInstance.SetFullscreen(1);" +
+    "}).catch(function(message){alert(message);});};" +
+    "script.onerror=function(){setProgressText('error: failed to load hussrooms.loader.js');unityShowBanner('Failed to load hussrooms.loader.js','error');};" +
+    "document.body.appendChild(script);" +
+    "}catch(err){setProgressText('error: '+err.message);unityShowBanner('Failed to load game assets: '+err.message,'error');console.error(err);}}" +
+    "boot();" +
+    "</scr" + "ipt></body></html>";
+
+  var iframe = document.getElementById("game");
+  if (!iframe) {
+    var fo = document.getElementsByTagName("foreignObject")[0];
+    iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+    iframe.id = "game";
+    iframe.setAttribute("style", "position:fixed;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;");
+    iframe.setAttribute("allow", "fullscreen; autoplay; gamepad; xr-spatial-tracking");
+    iframe.setAttribute("allowfullscreen", "true");
+    if (fo) fo.appendChild(iframe);
+  }
+  var blob = new Blob([html], { type: "text/html" });
+  iframe.src = URL.createObjectURL(blob);
+})();
+  ]]></script>
 </svg>
