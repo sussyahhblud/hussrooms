@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" width="100%" height="100%">
   <foreignObject width="100%" height="100%">
-    <xhtml:div xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;">
+    <xhtml:div id="root" xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;">
       <style>
         html, body {
           margin: 0;
@@ -80,6 +80,7 @@
           "https://cdn.jsdelivr.net/gh/" + JSDELIVR_USER + "/" + JSDELIVR_REPO +
           "@" + JSDELIVR_REF;
 
+        var root = document.getElementById("root") || document.documentElement;
         var container = document.querySelector("#unity-container");
         var canvas = document.querySelector("#unity-canvas");
         var loadingBar = document.querySelector("#unity-loading-bar");
@@ -88,6 +89,10 @@
         var fullscreenButton = document.querySelector("#unity-fullscreen-button");
         var warningBanner = document.querySelector("#unity-warning");
         var unityInstanceRef = null;
+
+        function mountTarget() {
+          return container || root || document.documentElement;
+        }
 
         document.addEventListener("click", function() {
           if (unityInstanceRef && !document.fullscreenElement) {
@@ -209,7 +214,8 @@
           var meta = document.createElement("meta");
           meta.name = "viewport";
           meta.content = "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
-          document.getElementsByTagName("head")[0].appendChild(meta);
+          var head = document.getElementsByTagName("head")[0] || document.documentElement;
+          head.appendChild(meta);
           container.className = "unity-mobile";
           canvas.className = "unity-mobile";
         }
@@ -227,7 +233,7 @@
             function showPartProgress(kind, p, partName) {
               var pct = Math.round(p * 100);
               lastPartLabel = partName || lastPartLabel;
-              setProgressText("loading " + kind + "  " + pct + "%\n" + lastPartLabel);
+              setProgressText("loading " + kind + " " + pct + "%\n" + lastPartLabel);
             }
             var results = await Promise.all([
               fetchParts(
@@ -280,7 +286,7 @@
                 progressState.instantiate = progress;
                 updateOverallProgress();
                 var pct = Math.round(progress * 100);
-                setProgressText("createUnityInstance  " + pct + "%");
+                setProgressText("createUnityInstance " + pct + "%");
               }).then(function(unityInstance) {
                 unityInstanceRef = unityInstance;
                 loadingBar.style.display = "none";
@@ -294,7 +300,11 @@
                 alert(message);
               });
             };
-            document.body.appendChild(script);
+            script.onerror = function() {
+              setProgressText("error: failed to load hussrooms.loader.js");
+              unityShowBanner("Failed to load hussrooms.loader.js", "error");
+            };
+            mountTarget().appendChild(script);
           } catch (err) {
             setProgressText("error: " + err.message);
             unityShowBanner("Failed to load game assets: " + err.message, "error");
